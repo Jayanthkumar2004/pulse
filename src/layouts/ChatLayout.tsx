@@ -10,21 +10,24 @@ import { cn } from '@/lib/utils';
  * pane is ever visible on small screens.
  */
 export function ChatLayout() {
-  const location = useLocation();
-  const isConversationOpen = location.pathname !== '/chats' && location.pathname.startsWith('/chats/');
+  const isMobileFullScreen =
+  location.pathname.startsWith('/chats/') ||
+  location.pathname === '/settings' ||
+  location.pathname === '/profile' ||
+  location.pathname === '/starred';
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-chat-panel dark:bg-chat-dark-panel">
+    <div className="flex min-h-dvh w-full bg-chat-panel dark:bg-chat-dark-panel">
       <aside
         className={cn(
           'sidebar-pane w-full shrink-0 border-r border-chat-border dark:border-chat-dark-border md:w-[380px] lg:w-[400px]',
-          isConversationOpen && 'hidden md:flex'
+          isMobileFullScreen && "hidden md:flex"
         )}
       >
         <ChatSidebar />
       </aside>
 
-      <main className={cn('chat-pane flex-1 min-w-0', !isConversationOpen && 'hidden md:flex')}>
+      <main className={cn('chat-pane flex-1 min-w-0', !isMobileFullScreen && "hidden md:flex")}>
         <Outlet />
       </main>
     </div>
