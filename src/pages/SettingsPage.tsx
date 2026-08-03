@@ -31,7 +31,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
   const { mode, setMode, accentColor, setAccentColor } = useTheme();
-  const { permission, requestPermission } = useBrowserNotifications();
+const { permission, requestPermission, disable } = useBrowserNotifications();
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -48,6 +48,10 @@ export function SettingsPage() {
       await supabase
         .from('user_settings')
         .upsert({ user_id: user.id, notifications_enabled: !notifEnabled });
+    }
+    // If disabling, also remove the push subscription.
+    if (notifEnabled) {
+      await disable();
     }
   };
 

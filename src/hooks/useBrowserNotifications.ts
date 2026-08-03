@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { subscribeToPush, unsubscribeFromPush } from '@/services/push.service';
 
 type Permission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -17,6 +18,10 @@ export function useBrowserNotifications() {
     if (!('Notification' in window)) return 'unsupported' as const;
     const result = await Notification.requestPermission();
     setPermission(result as Permission);
+    if (result === 'granted') {
+      // Register the PWA push subscription if the service worker is ready.
+      await subscribeToPush();
+    }
     return result as Permission;
   }, []);
 
@@ -27,8 +32,8 @@ export function useBrowserNotifications() {
       }
       try {
         const n = new Notification(title, {
-          icon: '/icon.svg',
-          badge: '/icon.svg',
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
           ...options,
         });
         if (options?.onClick) {
@@ -46,5 +51,9 @@ export function useBrowserNotifications() {
     []
   );
 
-  return { permission, requestPermission, notify };
+  const disable = useCallback(async () => {
+    await unsubscribeFromPush();
+  }, []);
+
+  return { permission, requestPermission, notify, disable };
 }

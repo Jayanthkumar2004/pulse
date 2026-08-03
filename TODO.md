@@ -9,3 +9,10 @@
 - [x] 6. Fix `ChatSidebar.tsx` — safe-area bottom padding on footer
 - [x] 7. Update `manifest.webmanifest` — proper PWA icons for installability
 - [x] 8. Verify build compiles with `npm run build`
+
+## PWA Notification Support (bonus)
+- [x] Add `push_subscriptions` table migration
+- [x] Add Web Push handler to `sw.js`
+- [x] Add `push.service.ts` for subscription management
+- [x] Integrate push subscription into `useBrowserNotifications` hook
+- [x] Wire disable/unsubscribe into `SettingsPage`

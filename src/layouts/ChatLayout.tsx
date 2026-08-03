@@ -18,19 +18,25 @@ export function ChatLayout() {
     location.pathname === '/starred';
 
   return (
-    <div className="flex min-h-dvh w-full pt-safe bg-chat-panel dark:bg-chat-dark-panel">
+    <div className="flex h-dvh w-full pt-safe overflow-hidden bg-chat-panel dark:bg-chat-dark-panel">
       <aside
         className={cn(
-          'sidebar-pane w-full shrink-0 border-r border-chat-border dark:border-chat-dark-border md:w-[380px] lg:w-[400px]',
+          'sidebar-pane w-full h-full shrink-0 overflow-hidden border-r border-chat-border dark:border-chat-dark-border md:w-[380px] lg:w-[400px]',
           isMobileFullScreen && 'hidden md:flex'
         )}
       >
         <ChatSidebar />
       </aside>
 
-      <main className={cn('chat-pane flex-1 min-w-0', !isMobileFullScreen && 'hidden md:flex')}>
+      <main
+        className={cn(
+          'chat-pane h-full flex-1 min-w-0 overflow-hidden',
+          !isMobileFullScreen && 'hidden md:flex'
+        )}
+      >
         <Outlet />
       </main>
     </div>
   );
 }
+
