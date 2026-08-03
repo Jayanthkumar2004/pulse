@@ -135,7 +135,7 @@ export function MessageComposer({
   const canSend = text.trim().length > 0 && text.length <= MAX_TEXT_LENGTH;
 
   return (
-    <div className="relative bg-chat-panel dark:bg-chat-dark-panel px-2 sm:px-4 py-2.5 border-t border-chat-border dark:border-chat-dark-border">
+<div className="relative bg-chat-panel dark:bg-chat-dark-panel px-2 sm:px-4 py-2.5 pb-[env(safe-area-inset-bottom)] border-t border-chat-border dark:border-chat-dark-border">
       {/* Reply / edit banner */}
       {(replyTo || editing) && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 animate-slide-right">
@@ -156,9 +156,9 @@ export function MessageComposer({
         </div>
       )}
 
-      {/* Emoji picker */}
+{/* Emoji picker */}
       {showEmoji && (
-        <div className="absolute bottom-full left-2 mb-2 w-72 max-h-56 overflow-y-auto scrollbar-thin rounded-2xl bg-white dark:bg-chat-dark-bubble shadow-lift p-3 grid grid-cols-8 gap-1 animate-scale-in origin-bottom-left">
+        <div className="absolute bottom-full left-2 right-2 sm:right-auto sm:w-72 mb-2 max-h-52 sm:max-h-56 overflow-y-auto scrollbar-thin rounded-2xl bg-white dark:bg-chat-dark-bubble shadow-lift p-3 grid grid-cols-8 sm:grid-cols-8 sm:gap-1 gap-0.5 animate-scale-in origin-bottom-left">
           {EMOJI_SET.map((emoji) => (
             <button
               key={emoji}
@@ -176,7 +176,7 @@ export function MessageComposer({
 
       {/* Attachment menu */}
       {showAttach && (
-        <div className="absolute bottom-full left-12 mb-2 rounded-2xl bg-white dark:bg-chat-dark-bubble shadow-lift py-2 w-44 animate-scale-in origin-bottom-left">
+        <div className="absolute bottom-full left-2 right-2 sm:left-12 sm:right-auto sm:w-44 mb-2 rounded-2xl bg-white dark:bg-chat-dark-bubble shadow-lift py-2 animate-scale-in origin-bottom-left">
           <AttachItem
             icon={<ImageIcon className="h-5 w-5 text-violet-500" />}
             label="Photos & Videos"

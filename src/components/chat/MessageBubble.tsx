@@ -53,21 +53,23 @@ export const MessageBubble = memo(function MessageBubble({
   isStarred,
   replyTo,
 }: MessageBubbleProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+const [menuOpen, setMenuOpen] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!menuOpen && !showReactions) return;
+    if (!menuOpen && !showReactions && !actionsOpen) return;
     const onClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
         setShowReactions(false);
+        setActionsOpen(false);
       }
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
-  }, [menuOpen, showReactions]);
+  }, [menuOpen, showReactions, actionsOpen]);
 
   if (message.deleted_for_everyone) {
     return (
@@ -109,7 +111,16 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
       )}
 
-      <div className="relative max-w-[78%] sm:max-w-[65%]" ref={menuRef}>
+<div
+        className="relative max-w-[82%] sm:max-w-[65%]"
+        ref={menuRef}
+        onClick={() => {
+          // Tap-to-reveal actions on touch devices (no hover available)
+          if (window.matchMedia('(hover: none)').matches) {
+            setActionsOpen((o) => !o);
+          }
+        }}
+      >
         {/* Reaction bar */}
         {showReactions && (
           <div className="absolute -top-9 left-0 z-10 flex gap-1 rounded-full bg-white dark:bg-chat-dark-bubble shadow-lift px-1.5 py-1 animate-scale-in">
@@ -216,10 +227,15 @@ export const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
-        {/* Hover actions */}
+{/* Hover/tap actions */}
         <div
           className={cn(
-            'absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5',
+            'absolute top-0 flex items-center gap-0.5',
+            'z-10',
+            'opacity-0 group-hover:opacity-100',
+            'pointer-events-none group-hover:pointer-events-auto',
+            'sm:opacity-0 sm:group-hover:opacity-100',
+            actionsOpen && 'opacity-100 pointer-events-auto',
             isMine ? '-left-16' : '-right-16'
           )}
         >

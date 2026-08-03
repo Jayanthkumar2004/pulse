@@ -587,11 +587,12 @@ export function ChatPage() {
             </p>
           </div>
         </Link>
-        <div className="flex items-center gap-0.5">
-          <button className="rounded-full p-2 text-chat-bubbleText dark:text-chat-dark-bubbleText hover:bg-black/5 dark:hover:bg-white/5" title="Video call">
+<div className="flex items-center gap-0.5">
+          {/* Call buttons hidden on small screens to avoid crowding */}
+          <button className="hidden sm:flex rounded-full p-2 text-chat-bubbleText dark:text-chat-dark-bubbleText hover:bg-black/5 dark:hover:bg-white/5" title="Video call">
             <Video className="h-5 w-5" />
           </button>
-          <button className="rounded-full p-2 text-chat-bubbleText dark:text-chat-dark-bubbleText hover:bg-black/5 dark:hover:bg-white/5" title="Voice call">
+          <button className="hidden sm:flex rounded-full p-2 text-chat-bubbleText dark:text-chat-dark-bubbleText hover:bg-black/5 dark:hover:bg-white/5" title="Voice call">
             <Phone className="h-5 w-5" />
           </button>
           <button
@@ -609,7 +610,7 @@ export function ChatPage() {
               <MoreVertical className="h-5 w-5" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-xl border border-black/10 bg-white p-1 shadow-lift dark:border-white/10 dark:bg-chat-dark-bubble">
+              <div className="fixed right-3 top-16 z-30 w-56 max-w-[calc(100vw-1.5rem)] rounded-xl border border-black/10 bg-white p-1 shadow-lift dark:border-white/10 dark:bg-chat-dark-bubble sm:fixed sm:right-auto sm:top-auto sm:absolute sm:right-0 sm:top-full sm:mt-1">
                 <MenuRow icon={<Pin className="h-4 w-4" />} label={isPinned ? 'Unpin chat' : 'Pin chat'} onClick={() => { handlePin(); setMenuOpen(false); }} />
                 <MenuRow icon={<BellOff className="h-4 w-4" />} label={isMuted ? 'Unmute' : 'Mute notifications'} onClick={() => { handleMute(); setMenuOpen(false); }} />
                 <MenuRow icon={<Trash2 className="h-4 w-4" />} label="Clear chat" onClick={() => { handleClearChat(); setMenuOpen(false); }} />
