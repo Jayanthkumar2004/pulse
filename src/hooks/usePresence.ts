@@ -9,7 +9,7 @@ import { setMyPresence } from '@/services/profile.service';
  */
 export function usePresence(otherUserId: string | null) {
   const [other, setOther] = useState<Profile | null>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!otherUserId) {

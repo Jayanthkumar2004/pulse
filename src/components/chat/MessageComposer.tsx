@@ -9,6 +9,7 @@ import {
   Camera,
   Image as ImageIcon,
   FileText,
+  CornerDownLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
@@ -55,6 +56,7 @@ export function MessageComposer({
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [kbOffset, setKbOffset] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -62,6 +64,37 @@ export function MessageComposer({
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const recorder = useVoiceRecorder();
+
+  // Mobile keyboard handling: keep the composer visible above the virtual
+  // keyboard using visualViewport when it is supported.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const viewportHeight = window.innerHeight;
+      const diff = viewportHeight - vv.height;
+      setKbOffset(diff > 0 ? diff : 0);
+    };
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    onResize();
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, []);
+
+  // Auto-grow the textarea to its content (max ~5 rows).
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, []);
+
+  useEffect(() => {
+    autoResize();
+  }, [text, autoResize]);
 
   useEffect(() => {
     if (editing) {
@@ -135,7 +168,10 @@ export function MessageComposer({
   const canSend = text.trim().length > 0 && text.length <= MAX_TEXT_LENGTH;
 
   return (
-<div className="relative bg-chat-panel dark:bg-chat-dark-panel px-2 sm:px-4 py-2.5 pb-[env(safe-area-inset-bottom)] border-t border-chat-border dark:border-chat-dark-border">
+    <div
+      className="relative bg-chat-panel dark:bg-chat-dark-panel px-2 sm:px-4 py-2.5 border-t border-chat-border dark:border-chat-dark-border transition-[padding-bottom] duration-200"
+      style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${kbOffset}px)` }}
+    >
       {/* Reply / edit banner */}
       {(replyTo || editing) && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 animate-slide-right">
@@ -209,16 +245,16 @@ export function MessageComposer({
         </button>
 
         {/* Text input */}
-        <div className="flex-1 flex items-end gap-1 rounded-2xl bg-chat-bubble dark:bg-chat-dark-bubble px-2 py-1.5 min-h-[42px] max-w-full">
+        <div className="flex-1 flex items-end gap-1 rounded-2xl bg-chat-bubble dark:bg-chat-dark-bubble px-2 py-1.5 min-h-[44px] max-w-full">
           <button
             onClick={() => {
               setShowEmoji((s) => !s);
               setShowAttach(false);
             }}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-chat-muted hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-chat-muted hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all"
             title="Emoji"
           >
-            <Smile className={cn('h-5 w-5', showEmoji && 'text-accent')} />
+            <Smile className={cn('h-[22px] w-[22px]', showEmoji && 'text-accent')} />
           </button>
           <textarea
             ref={textareaRef}
@@ -227,8 +263,11 @@ export function MessageComposer({
             onKeyDown={onKeyDown}
             rows={1}
             placeholder={editing ? 'Edit message...' : 'Type a message'}
-            className="auto-resize flex-1 resize-none bg-transparent text-sm text-chat-bubbleText dark:text-chat-dark-bubbleText placeholder:text-chat-muted focus:outline-none max-h-28 leading-relaxed py-1.5 min-w-0"
+            inputMode="text"
+            enterKeyHint="send"
+            className="flex-1 resize-none bg-transparent text-[15px] sm:text-sm text-chat-bubbleText dark:text-chat-dark-bubbleText placeholder:text-chat-muted focus:outline-none max-h-[120px] leading-relaxed py-2 min-w-0"
             maxLength={MAX_TEXT_LENGTH}
+            style={{ height: 'auto' }}
           />
         </div>
 
@@ -237,7 +276,7 @@ export function MessageComposer({
           <div className="flex items-center gap-1.5">
             <button
               onClick={recorder.cancel}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-error/10 text-error"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-error/10 text-error active:scale-95 transition-transform"
               title="Cancel"
             >
               <Trash2 className="h-5 w-5" />
@@ -251,31 +290,44 @@ export function MessageComposer({
             </div>
             <button
               onClick={handleVoiceSend}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white shadow-soft"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white shadow-soft active:scale-95 transition-transform"
               title="Send voice"
             >
               <Send className="h-5 w-5" />
             </button>
           </div>
-        ) : canSend ? (
-          <Button
-            size="icon"
-            onClick={send}
-            disabled={sending}
-            className="h-10 w-10 rounded-full shadow-soft"
-            title={editing ? 'Save edit' : 'Send'}
-          >
-            <Send className="h-5 w-5" />
-          </Button>
         ) : (
-          <button
-            onClick={recorder.start}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-chat-muted hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            title="Record voice note"
-          >
-            <Mic className="h-5 w-5" />
-          </button>
+          <div className="flex items-end gap-1">
+            <Button
+              size="icon"
+              onClick={send}
+              disabled={sending || !canSend}
+              className="h-11 w-11 rounded-full shadow-soft active:scale-95 transition-transform"
+              title={editing ? 'Save edit' : 'Send'}
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+            <button
+              onClick={recorder.start}
+              disabled={canSend}
+              className={cn(
+                'flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all active:scale-95',
+                canSend
+                  ? 'hidden'
+                  : 'text-chat-muted hover:bg-black/5 dark:hover:bg-white/5'
+              )}
+              title="Record voice note"
+            >
+              <Mic className="h-5 w-5" />
+            </button>
+          </div>
         )}
+      </div>
+
+      {/* Keyboard hint on mobile */}
+      <div className="mt-1 flex items-center gap-1 text-[10px] text-chat-muted select-none">
+        <CornerDownLeft className="h-3 w-3" />
+        <span>Enter to send · Shift+Enter for new line</span>
       </div>
 
       {recorder.error && (

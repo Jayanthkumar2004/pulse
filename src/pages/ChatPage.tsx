@@ -16,7 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; 
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import {
@@ -26,6 +26,7 @@ import {
   editMessage,
   deleteForMe,
   deleteForEveryone,
+  clearChatForMe,
   toggleStar,
   toggleReaction,
   searchMessagesInConversation,
@@ -41,7 +42,7 @@ import { fetchStarredMessages } from '@/services/message.service';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { usePresence } from '@/hooks/usePresence';
 import { useTyping, useOtherTyping } from '@/hooks/useTyping';
-import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
+import { useGlobalNotifications } from '@/hooks/useGlobalNotifications';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { MessageComposer } from '@/components/chat/MessageComposer';
 import { Avatar } from '@/components/ui/Avatar';
@@ -50,16 +51,15 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { formatPresence, formatDateDivider, isSameDay } from '@/lib/format';
-import { playNotificationSound } from '@/lib/sound';
 import type { Message, Conversation, Profile } from '@/types';
 import { cn } from '@/lib/utils';
 
 export function ChatPage() {
   const { conversationId } = useParams();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { notify } = useBrowserNotifications();
+  const { setActiveConversation } = useGlobalNotifications();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -74,10 +74,11 @@ export function ChatPage() {
   const [isPinned, setIsPinned] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
+const scrollRef = useRef<HTMLDivElement>(null);
   const oldestDate = useRef<string | null>(null);
   const previousMessageCount = useRef(0);
   const isNearBottomRef = useRef(true);
+  const clearedAtRef = useRef<number | null>(null);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     requestAnimationFrame(() => {
@@ -156,15 +157,16 @@ export function ChatPage() {
     setHasMore(data.length >= 30);
     if (data.length > 0) oldestDate.current = data[data.length - 1].created_at;
     requestAnimationFrame(() => scrollToBottom('auto'));
-  }, [conversationId, scrollToBottom]);
+}, [conversationId, scrollToBottom]);
 
   useEffect(() => {
+    setActiveConversation(conversationId ?? null);
     if (conversationId) {
       setMessages([]);
       loadMessages();
       markConversationRead(conversationId).catch(() => undefined);
     }
-  }, [conversationId, loadMessages]);
+  }, [conversationId, loadMessages, setActiveConversation]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -189,8 +191,13 @@ export function ChatPage() {
       }
     };
 
-    void syncLatestMessages();
+void syncLatestMessages();
     const interval = window.setInterval(() => {
+      // Skip polling for a short window after clearing so old messages
+      // already hidden in deleted_messages don't flash back in.
+      if (clearedAtRef.current && Date.now() - clearedAtRef.current < 12000) {
+        return;
+      }
       void syncLatestMessages();
     }, 4000);
 
@@ -232,7 +239,7 @@ export function ChatPage() {
     [starred]
   );
 
-  // Realtime message handlers
+// Realtime message handlers
   const handleNewMessage = useCallback(
     (msg: Message) => {
       setMessages((prev) => {
@@ -247,35 +254,13 @@ export function ChatPage() {
           markConversationRead(conversationId).catch(() => undefined);
         }
       }
-      // Browser notification
-      if (
-        msg.sender_id !== user?.id &&
-        headerOther &&
-        !isMuted &&
-        document.visibilityState !== 'visible'
-      ) {
-        playNotificationSound();
-        const body =
-          msg.message_type === 'text'
-            ? msg.body || 'New message'
-            : msg.message_type === 'image'
-            ? 'Sent a photo'
-            : msg.message_type === 'voice'
-            ? 'Sent a voice message'
-            : msg.message_type === 'video'
-            ? 'Sent a video'
-            : 'Sent an attachment';
-        notify(`${headerOther.full_name || headerOther.username}`, {
-          body,
-          onClick: () => navigate(`/chats/${conversationId}`),
-        });
-      }
+      // Notifications are handled globally by useGlobalNotifications.
       if (isNearBottomRef.current || msg.sender_id === user?.id) {
         scrollToBottom('smooth');
       }
       qc.invalidateQueries({ queryKey: ['conversations', user?.id] });
     },
-    [user?.id, conversationId, headerOther, isMuted, notify, navigate, qc, scrollToBottom]
+    [user?.id, conversationId, qc, scrollToBottom]
   );
 
   const handleUpdate = useCallback((msg: Message) => {
@@ -478,10 +463,12 @@ export function ChatPage() {
     }
   }, [conversationId, qc, user?.id, navigate]);
 
-  const handleClearChat = useCallback(async () => {
+const handleClearChat = useCallback(async () => {
     if (!conversationId) return;
     try {
+      await clearChatForMe(conversationId);
       setMessages([]);
+      clearedAtRef.current = Date.now();
       qc.invalidateQueries({ queryKey: ['conversations', user?.id] });
       setMenuOpen(false);
       toast.success('Chat cleared');
@@ -586,8 +573,8 @@ export function ChatPage() {
               {presenceText}
             </p>
           </div>
-        </Link>
-<div className="flex items-center gap-0.5">
+</Link>
+        <div className="flex items-center gap-0.5">
           {/* Call buttons hidden on small screens to avoid crowding */}
           <button className="hidden sm:flex rounded-full p-2 text-chat-bubbleText dark:text-chat-dark-bubbleText hover:bg-black/5 dark:hover:bg-white/5" title="Video call">
             <Video className="h-5 w-5" />

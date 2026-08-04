@@ -72,6 +72,50 @@ export async function deleteForMe(messageId: string): Promise<void> {
   if (error && error.code !== '23505') throw error;
 }
 
+/**
+ * Clear all messages in a conversation for the current user. Inserts every
+ * message id into `deleted_messages` so the RLS select policy hides them.
+ * Uses a SECURITY DEFINER RPC so the user can bulk-hide their own copy while
+ * other members' copies remain intact.
+ *
+ * If the RPC isn't deployed yet on the remote DB, falls back to locally
+ * inserting the current conversation's message ids into `deleted_messages`
+ * one-by-one (best-effort) so the chat still clears on the client.
+ */
+export async function clearChatForMe(conversationId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not signed in');
+
+  // Preferred path: bulk RPC.
+  const { error: rpcError } = await supabase.rpc('clear_chat_for_me', {
+    p_conversation_id: conversationId,
+  });
+  if (!rpcError) return;
+
+  // Fallback: fetch this conversation's messages and hide each one for me.
+  const { data: msgs, error: fetchErr } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversationId);
+  if (fetchErr) throw fetchErr;
+
+  const ids = (msgs ?? []).map((m) => m.id);
+  if (ids.length === 0) return;
+
+  const { error: insertErr } = await supabase
+    .from('deleted_messages')
+    .upsert(ids.map((id) => ({ user_id: user.id, message_id: id })),
+      { onConflict: 'user_id,message_id' });
+  if (insertErr) throw insertErr;
+
+  // Reset the read marker so unread counts are clean after clearing.
+  await supabase
+    .from('conversation_members')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', user.id);
+}
+
 export async function toggleStar(messageId: string, star: boolean) {
   if (star) {
     const { error } = await supabase
