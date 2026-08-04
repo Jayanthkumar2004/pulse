@@ -14,3 +14,18 @@
 ## Online/last-seen accuracy
 - [x] Update `usePresence.ts` & `usePresenceManager.ts` — shorter heartbeat (15s) for accurate presence
 - [x] TypeScript compile verification
+
+## PWA push notifications
+- [x] Integrate reference notification logic (auto permission, dedupe, query invalidation, SW fallback)
+- [x] Update `main.tsx` — register SW in dev on localhost + auto-subscribe when permission granted
+- [x] Create `PUSH_SETUP.md` — full Web Push configuration guide
+- [x] Create `.env.example` — documents `VITE_VAPID_PUBLIC_KEY`
+- [x] Create `scripts/generate-vapid-keys.cjs` + add `npm run vapid:keys`
+- [x] Update README with PWA push setup steps
+
+## Remaining (requires backend access)
+- [ ] Run `node scripts/generate-vapid-keys.cjs` and add keys to `.env` + Edge Function secrets
+- [ ] Deploy `send-push` Edge Function with VAPID secrets
+- [ ] `supabase config set app.push.edge_url` + `app.push.webhook_secret`
+- [ ] `supabase db push` (apply migration 0008 trigger + 0009 REPLICA IDENTITY)
+

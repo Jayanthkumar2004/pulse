@@ -97,7 +97,32 @@ The following are pre-populated in `.env`:
 ```
 VITE_SUPABASE_URL=your-project-url
 VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_VAPID_PUBLIC_KEY=your-vapid-public-key   # required for PWA push notifications
 ```
+
+### PWA Push Notifications
+To enable **native Web Push notifications** when the app is closed/backgrounded, you
+must configure the full push chain (VAPID keys, Edge Function, DB trigger). See
+[`PUSH_SETUP.md`](./PUSH_SETUP.md) for the complete step-by-step guide.
+
+Quick steps:
+1. Generate VAPID keys:
+   ```bash
+   node scripts/generate-vapid-keys.cjs
+   ```
+2. Add `VITE_VAPID_PUBLIC_KEY` to `.env`.
+3. Deploy the `send-push` Edge Function and set its secrets:
+   ```bash
+   supabase functions deploy send-push
+   supabase secrets set VAPID_PUBLIC_KEY="..." VAPID_PRIVATE_KEY="..." WEBHOOK_SECRET="..."
+   ```
+4. Configure the DB trigger:
+   ```bash
+   supabase db push
+   supabase config set app.push.edge_url "https://<ref>.supabase.co/functions/v1/send-push"
+   supabase config set app.push.webhook_secret "<same-secret>"
+   ```
+5. Rebuild and test.
 
 ### Build
 ```bash
