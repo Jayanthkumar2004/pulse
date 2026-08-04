@@ -56,7 +56,6 @@ export function MessageComposer({
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
-  const [kbOffset, setKbOffset] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -64,25 +63,6 @@ export function MessageComposer({
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const recorder = useVoiceRecorder();
-
-  // Mobile keyboard handling: keep the composer visible above the virtual
-  // keyboard using visualViewport when it is supported.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const onResize = () => {
-      const viewportHeight = window.innerHeight;
-      const diff = viewportHeight - vv.height;
-      setKbOffset(diff > 0 ? diff : 0);
-    };
-    vv.addEventListener('resize', onResize);
-    vv.addEventListener('scroll', onResize);
-    onResize();
-    return () => {
-      vv.removeEventListener('resize', onResize);
-      vv.removeEventListener('scroll', onResize);
-    };
-  }, []);
 
   // Auto-grow the textarea to its content (max ~5 rows).
   const autoResize = useCallback(() => {
@@ -168,10 +148,7 @@ export function MessageComposer({
   const canSend = text.trim().length > 0 && text.length <= MAX_TEXT_LENGTH;
 
   return (
-    <div
-      className="relative bg-chat-panel dark:bg-chat-dark-panel px-2 sm:px-4 py-2.5 border-t border-chat-border dark:border-chat-dark-border transition-[padding-bottom] duration-200"
-      style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${kbOffset}px)` }}
-    >
+    <div className="relative bg-chat-panel dark:bg-chat-dark-panel px-2 sm:px-4 py-2.5 pb-safe border-t border-chat-border dark:border-chat-dark-border">
       {/* Reply / edit banner */}
       {(replyTo || editing) && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-black/5 dark:bg-white/5 px-3 py-2 animate-slide-right">

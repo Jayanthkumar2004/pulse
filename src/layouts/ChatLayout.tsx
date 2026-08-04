@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { usePresenceManager } from '@/hooks/usePresenceManager';
 import { useGlobalNotifications } from '@/hooks/useGlobalNotifications';
+import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { cn } from '@/lib/utils';
 
 /**
@@ -18,6 +19,7 @@ export function ChatLayout() {
   const location = useLocation();
   usePresenceManager();
   useGlobalNotifications();
+  const vvHeight = useVisualViewport();
 
   const isMobileFullScreen =
     location.pathname.startsWith('/chats/') ||
@@ -26,7 +28,10 @@ export function ChatLayout() {
     location.pathname === '/starred';
 
   return (
-    <div className="flex min-h-dvh w-full pt-safe bg-chat-panel dark:bg-chat-dark-panel">
+    <div
+      className="flex w-full pt-safe bg-chat-panel dark:bg-chat-dark-panel"
+      style={{ height: vvHeight || '100dvh' }}
+    >
       <aside
         className={cn(
           'sidebar-pane w-full shrink-0 border-r border-chat-border dark:border-chat-dark-border md:w-[380px] lg:w-[400px]',

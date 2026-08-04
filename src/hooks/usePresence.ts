@@ -44,8 +44,15 @@ export function usePresence(otherUserId: string | null) {
       )
       .subscribe();
 
+    // Polling fallback so online / last-seen stays accurate even if a
+    // realtime event is missed or the channel drops.
+    const poll = window.setInterval(() => {
+      void load();
+    }, 30_000);
+
     return () => {
       active = false;
+      clearInterval(poll);
       supabase.removeChannel(channel);
     };
   }, [otherUserId]);

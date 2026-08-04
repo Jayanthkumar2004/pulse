@@ -1,17 +1,15 @@
-# Pulse Fixes: PWA Push Notifications, Mobile UI, Clear Chat, Advanced Keyboard
+# TODO — Chat fixes
 
-## Steps
-- [x] 1. Auto-subscribe to push on app load in `useGlobalNotifications`
-- [x] 2. Create `send-push` Supabase Edge Function (backend Web Push sender)
-- [x] 3. Create migration `0008_push_trigger.sql` (DB trigger firing Edge Function via pg_net)
-- [x] 4. Add robust client-side fallback to `clearChatForMe` in `message.service.ts`
-- [x] 5. Suppress polling re-fetch of cleared messages in `ChatPage.tsx`
-- [x] 6. Upgrade `MessageComposer.tsx` to advanced autosizing keyboard (Enter-to-send, Shift+Enter newline, mobile-friendly)
-- [x] 7. Add `visualViewport` keyboard-aware handling for mobile composer
-- [x] 8. Improve `ChatPage.tsx` mobile header/bubble layout
-- [x] 9. Verify build + typecheck compile
+## Typing bar scroll fix
+- [x] Create `src/hooks/useVisualViewport.ts` — hook tracking visual viewport height
+- [x] Update `src/layouts/ChatLayout.tsx` — anchor root container to visual viewport height
+- [x] Update `src/components/chat/MessageComposer.tsx` — remove manual kbOffset keyboard handling
 
-## Notes
-- **Push backend**: Deploy `send-push` Edge Function + set secrets `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `WEBHOOK_SECRET`; configure `app.push.edge_url` and `app.push.webhook_secret` before `supabase db push` for migration 0008.
-- **Clear chat**: Client falls back to row-by-row `deleted_messages` insert if the `clear_chat_for_me` RPC is unavailable.
-- **Composer**: Autosizes up to 5 rows; `enterKeyHint="send"`; Shift+Enter for newline; `visualViewport` keeps it above the on-screen keyboard.
+## Message status ticks
+- [x] Update `ChatPage.tsx` — optimistic message sending (fixes late messages)
+- [x] Update `useGlobalNotifications.ts` — mark delivered globally for non-open chats (fixes double ticks)
+- [x] Update `usePresence.ts` — polling fallback for online/last-seen accuracy
+
+## Notifications
+- [x] Update `useGlobalNotifications.ts` — ensure notifications fire for non-open chats
+- [x] TypeScript compile verification

@@ -108,6 +108,12 @@ export function useGlobalNotifications() {
           if (!active) return;
           const msg = payload.new as Message;
           if (msg.sender_id === user.id) return; // ignore own messages
+
+          // Mark the message as delivered for the recipient so the sender
+          // sees the double tick even when the chat is not open.
+          if (msg.delivered_at == null) {
+            supabase.rpc('mark_message_delivered', { p_message_id: msg.id });
+          }
           if (activeConvRef.current === msg.conversation_id) return; // already open
           if (mutedRef.current.has(msg.conversation_id)) return; // muted
           if (!notifEnabledRef.current) return; // notifications disabled

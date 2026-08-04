@@ -301,12 +301,18 @@ void syncLatestMessages();
     setLoadingMore(false);
   }, [conversationId, loadingMore, hasMore]);
 
-  // Send handlers
+// Send handlers
   const handleSendText = useCallback(
     async (text: string) => {
       if (!conversationId) return;
       try {
-        await sendTextMessage(conversationId, text, replyTo?.id);
+        const msg = await sendTextMessage(conversationId, text, replyTo?.id);
+        // Optimistically add the message sent by the server response so the
+        // bubble appears immediately instead of waiting for the realtime event.
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
         setReplyTo(null);
         setTyping(false);
         scrollToBottom('smooth');
@@ -321,7 +327,11 @@ void syncLatestMessages();
     async (file: File, caption: string | null) => {
       if (!conversationId) return;
       try {
-        await sendMediaMessage(conversationId, file, caption, replyTo?.id);
+        const msg = await sendMediaMessage(conversationId, file, caption, replyTo?.id);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
         setReplyTo(null);
         scrollToBottom('smooth');
         toast.success('File sent');
@@ -336,7 +346,11 @@ void syncLatestMessages();
     async (file: File) => {
       if (!conversationId) return;
       try {
-        await sendMediaMessage(conversationId, file, null, replyTo?.id);
+        const msg = await sendMediaMessage(conversationId, file, null, replyTo?.id);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
         setReplyTo(null);
         scrollToBottom('smooth');
       } catch {
