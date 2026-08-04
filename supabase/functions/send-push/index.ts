@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     return json({ ok: false, reason: 'vapid not configured' }, 500);
   }
 
-  // Recipients = conversation members, excluding the sender and muted users.
+// Recipients = conversation members, excluding the sender and muted users.
   const { data: members, error: membersErr } = await supabase
     .from('conversation_members')
     .select('user_id, muted')
@@ -88,6 +88,31 @@ Deno.serve(async (req) => {
     .map((m: { user_id: string }) => m.user_id);
 
   if (recipientIds.length === 0) {
+    return json({ ok: true, sent: 0 });
+  }
+
+  // Respect each recipient's global push preference.
+  const { data: prefs, error: prefsErr } = await supabase
+    .from('notification_preferences')
+    .select('user_id, push_enabled, preview_enabled')
+    .in('user_id', recipientIds);
+
+  if (prefsErr) return json({ error: prefsErr.message }, 500);
+
+  const prefMap = new Map(
+    (prefs ?? []).map((p: { user_id: string; push_enabled: boolean; preview_enabled: boolean }) => [
+      p.user_id,
+      { push: p.push_enabled !== false, preview: p.preview_enabled !== false },
+    ])
+  );
+
+  const finalRecipients = recipientIds.filter((id) => {
+    const p = prefMap.get(id);
+    // Default to enabled if no row exists.
+    return p ? p.push : true;
+  });
+
+  if (finalRecipients.length === 0) {
     return json({ ok: true, sent: 0 });
   }
 
@@ -112,17 +137,23 @@ Deno.serve(async (req) => {
   else if (msgType === 'audio') bodyText = 'Sent an audio message';
   else if (msgType === 'file') bodyText = 'Sent an attachment';
 
-  // Fetch push subscriptions for every recipient.
+// Fetch push subscriptions for every recipient.
   const { data: subscriptions, error: subsErr } = await supabase
     .from('push_subscriptions')
     .select('endpoint, p256dh, auth')
-    .in('user_id', recipientIds);
+    .in('user_id', finalRecipients);
 
   if (subsErr) return json({ error: subsErr.message }, 500);
 
+  // Per-recipient preview: if any recipient disabled previews, hide the body.
+  const anyPreviewDisabled = (prefs ?? []).some(
+    (p: { user_id: string; preview_enabled: boolean }) =>
+      finalRecipients.includes(p.user_id) && p.preview_enabled === false
+  );
+
   const notification = {
     title: senderName,
-    body: bodyText,
+    body: anyPreviewDisabled ? 'New message' : bodyText,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     url: `/chats/${conversationId}`,

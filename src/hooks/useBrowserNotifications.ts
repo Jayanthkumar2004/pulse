@@ -14,6 +14,18 @@ export function useBrowserNotifications() {
     setPermission(Notification.permission as Permission);
   }, []);
 
+  // Re-subscribe if the browser rotates the push subscription (handled by
+  // the service worker's `pushsubscriptionchange` listener).
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_SUBSCRIPTION_CHANGED') {
+        void subscribeToPush();
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, []);
+
   const requestPermission = useCallback(async () => {
     if (!('Notification' in window)) return 'unsupported' as const;
     const result = await Notification.requestPermission();

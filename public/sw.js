@@ -16,35 +16,53 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
-self.addEventListener('fetch', (e) => {
-  const { request } = e;
-  if (request.method !== 'GET') return;
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
   const url = new URL(request.url);
-  // Network-first for navigation, cache fallback.
+
+  // Don't intercept Vite development files
+  if (
+    self.location.hostname === 'localhost' ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@vite/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('.ts') ||
+    url.pathname.includes('.tsx')
+  ) {
+    return;
+  }
+
+  if (request.method !== 'GET') return;
+
+  // Network-first for page navigation
   if (request.mode === 'navigate') {
-    e.respondWith(
+    event.respondWith(
       fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
-          return res;
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          return response;
         })
         .catch(() => caches.match(request).then((r) => r || caches.match('/')))
     );
     return;
   }
-  // Cache-first for same-origin static assets.
+
+  // Cache-first for static assets
   if (url.origin === self.location.origin) {
-    e.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((res) => {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(request, copy));
-            return res;
-          })
-      )
+    event.respondWith(
+      caches.match(request).then(async (cached) => {
+        if (cached) return cached;
+
+        try {
+          const response = await fetch(request);
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          return response;
+        } catch {
+          return caches.match(request);
+        }
+      })
     );
   }
 });
@@ -83,6 +101,18 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       return self.clients.openWindow(url);
+    })
+  );
+});
+
+// Notify the app to re-subscribe if the push subscription is rotated by the
+// browser (e.g. after expiry or when the user clears site data).
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        client.postMessage({ type: 'PUSH_SUBSCRIPTION_CHANGED' });
+      }
     })
   );
 });

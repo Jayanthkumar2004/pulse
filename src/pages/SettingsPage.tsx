@@ -23,7 +23,7 @@ import { supabase } from '@/lib/supabase';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const ACCENT_COLORS = ['#00a884', '#2563eb', '#0ea5e9', '#e11d48', '#f59e0b', '#10b981'];
 
@@ -34,6 +34,36 @@ export function SettingsPage() {
 const { permission, requestPermission, disable } = useBrowserNotifications();
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [previewEnabled, setPreviewEnabled] = useState(true);
+
+  // Load current notification preferences from the database.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from('notification_preferences')
+        .select('message_notifications, sound_enabled, push_enabled, preview_enabled')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!active || !data) return;
+      setNotifEnabled(data.message_notifications !== false);
+      setSoundEnabled(data.sound_enabled !== false);
+      setPushEnabled(data.push_enabled !== false);
+      setPreviewEnabled(data.preview_enabled !== false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const savePrefs = async (patch: Record<string, boolean>) => {
+    if (!user) return;
+    await supabase
+      .from('notification_preferences')
+      .upsert({ user_id: user.id, ...patch });
+  };
 
   const toggleNotifs = async () => {
     if (!notifEnabled && permission !== 'granted') {
@@ -43,25 +73,39 @@ const { permission, requestPermission, disable } = useBrowserNotifications();
         return;
       }
     }
-    setNotifEnabled((n) => !n);
-    if (user) {
-      await supabase
-        .from('user_settings')
-        .upsert({ user_id: user.id, notifications_enabled: !notifEnabled });
-    }
+    const next = !notifEnabled;
+    setNotifEnabled(next);
+    await savePrefs({ message_notifications: next });
     // If disabling, also remove the push subscription.
-    if (notifEnabled) {
+    if (!next) {
       await disable();
     }
   };
 
   const toggleSound = async () => {
-    setSoundEnabled((s) => !s);
-    if (user) {
-      await supabase
-        .from('user_settings')
-        .upsert({ user_id: user.id, sound_enabled: !soundEnabled });
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    await savePrefs({ sound_enabled: next });
+  };
+
+  const togglePush = async () => {
+    const next = !pushEnabled;
+    setPushEnabled(next);
+    await savePrefs({ push_enabled: next });
+    if (next) {
+      // Enable Web Push so background/closed-app notifications work.
+      if (permission !== 'granted') {
+        await requestPermission();
+      }
+    } else {
+      await disable();
     }
+  };
+
+  const togglePreview = async () => {
+    const next = !previewEnabled;
+    setPreviewEnabled(next);
+    await savePrefs({ preview_enabled: next });
   };
 
   const themeOptions: { value: ThemeMode; icon: React.ReactNode; label: string }[] = [
@@ -171,6 +215,19 @@ const { permission, requestPermission, disable } = useBrowserNotifications();
             checked={soundEnabled}
             onChange={toggleSound}
             icon={<Volume2 className="h-4 w-4" />}
+          />
+          <ToggleRow
+            label="Push notifications"
+            description="Get notifications when the app is closed or in the background"
+            checked={pushEnabled}
+            onChange={togglePush}
+            disabled={permission === 'unsupported' || permission === 'denied'}
+          />
+          <ToggleRow
+            label="Message preview"
+            description="Show message text in notifications"
+            checked={previewEnabled}
+            onChange={togglePreview}
           />
         </Section>
 

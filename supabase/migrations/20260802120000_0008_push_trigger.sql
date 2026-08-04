@@ -24,12 +24,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_secret text := current_setting('app.push.webhook_secret', true);
   v_body jsonb;
 BEGIN
-  IF v_secret IS NULL OR v_secret = '' THEN
-    RETURN NEW; -- not configured, skip
-  END IF;
 
   v_body := jsonb_build_object(
     'record', to_jsonb(NEW),
@@ -39,13 +35,13 @@ BEGIN
   );
 
   PERFORM net.http_post(
-    url := current_setting('app.push.edge_url', true)::text,
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', format('Bearer %s', v_secret)
-    ),
-    body := v_body
-  );
+  url := 'https://qkumrpnpfmfqzmjjddgs.supabase.co/functions/v1/send-push',
+  headers := jsonb_build_object(
+    'Content-Type', 'application/json',
+    'Authorization', 'Bearer 737eda2b7fbb96a922df737bbe9c8c0570d8cdcfac73bce1e91c3c0e0c930282'
+  ),
+  body := v_body
+);
 
   RETURN NEW;
 END;
