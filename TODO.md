@@ -7,9 +7,10 @@
 
 ## Message status ticks
 - [x] Update `ChatPage.tsx` — optimistic message sending (fixes late messages)
-- [x] Update `useGlobalNotifications.ts` — mark delivered globally for non-open chats (fixes double ticks)
-- [x] Update `usePresence.ts` — polling fallback for online/last-seen accuracy
+- [x] Update `useGlobalNotifications.ts` — mark delivered globally for non-open chats
+- [x] Create migration `0009` — REPLICA IDENTITY FULL on messages for live blue ticks
+- [x] Update `useGlobalNotifications.ts` — respect `sound_enabled` + notify for non-open chats
 
-## Notifications
-- [x] Update `useGlobalNotifications.ts` — ensure notifications fire for non-open chats
+## Online/last-seen accuracy
+- [x] Update `usePresence.ts` & `usePresenceManager.ts` — shorter heartbeat (15s) for accurate presence
 - [x] TypeScript compile verification

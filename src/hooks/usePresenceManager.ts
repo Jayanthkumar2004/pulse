@@ -46,7 +46,7 @@ export function usePresenceManager() {
       if (document.visibilityState === 'visible' && document.hasFocus()) {
         goOnline();
       }
-    }, 45_000);
+    }, 15_000);
 
     const onUnload = () => {
       // Best-effort sync detached fetch so the server sees us go offline

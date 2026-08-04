@@ -48,7 +48,7 @@ export function usePresence(otherUserId: string | null) {
     // realtime event is missed or the channel drops.
     const poll = window.setInterval(() => {
       void load();
-    }, 30_000);
+    }, 15_000);
 
     return () => {
       active = false;
@@ -83,11 +83,13 @@ export function usePresence(otherUserId: string | null) {
     window.addEventListener('blur', onBlur);
     window.addEventListener('pagehide', goOffline);
     window.addEventListener('beforeunload', goOffline);
+    // Short heartbeat: keeps `last_seen` fresh and recovers from missed
+    // offline events quickly, so other users see accurate online status.
     timer.current = window.setInterval(() => {
       if (document.visibilityState === 'visible' && document.hasFocus()) {
         goOnline();
       }
-    }, 45_000);
+    }, 15_000);
 
     return () => {
       document.removeEventListener('visibilitychange', onVis);

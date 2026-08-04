@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
 import { subscribeToPush } from '@/services/push.service';
 import { playNotificationSound } from '@/lib/sound';
@@ -17,8 +18,15 @@ const MESSAGE_SELECT = `
 /**
  * App-wide notification listener. Subscribes to new messages on every
  * conversation the user is part of and shows a browser notification when the
- * app is NOT focused. Respects muted conversations and the user's
- * `notifications_enabled` setting.
+ * app is NOT visible. Respects muted conversations and the user's
+ * `notifications_enabled` / `sound_enabled` settings.
+ *
+ * Key behaviors (aligned with the reference implementation):
+ *  - Requests notification permission on app load if it's still "default".
+ *  - Tracks already-notified message ids to avoid duplicates.
+ *  - Invalidates the conversations query on new messages.
+ *  - Falls back to a service-worker notification if `new Notification`
+ *    throws (e.g. unsupported in some contexts).
  *
  * Mounted once at the layout level so notifications arrive on any page
  * (sidebar, settings, etc.), not just inside an open chat.
@@ -26,6 +34,7 @@ const MESSAGE_SELECT = `
 export function useGlobalNotifications() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { permission, notify } = useBrowserNotifications();
 
   // Track which conversation is currently open so we don't notify for it.
@@ -33,6 +42,8 @@ export function useGlobalNotifications() {
   const focusedRef = useRef(true);
   const mutedRef = useRef<Set<string>>(new Set());
   const notifEnabledRef = useRef(true);
+  const soundEnabledRef = useRef(true);
+  const notifiedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     focusedRef.current = document.hasFocus();
@@ -46,7 +57,14 @@ export function useGlobalNotifications() {
     };
   }, []);
 
-// Load user's notification settings + muted conversations, then
+  // Request notification permission on load if it's still "default".
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Load user's notification settings + muted conversations, then
   // auto-subscribe to Web Push on app load when permission is already
   // granted and notifications are enabled (so installed PWAs get native push
   // without requiring the user to visit Settings).
@@ -57,7 +75,7 @@ export function useGlobalNotifications() {
       const [{ data: settings }, { data: members }] = await Promise.all([
         supabase
           .from('user_settings')
-          .select('notifications_enabled')
+          .select('notifications_enabled, sound_enabled')
           .eq('user_id', user.id)
           .maybeSingle(),
         supabase
@@ -66,7 +84,10 @@ export function useGlobalNotifications() {
           .eq('user_id', user.id),
       ]);
       if (!active) return;
-      if (settings) notifEnabledRef.current = settings.notifications_enabled !== false;
+      if (settings) {
+        notifEnabledRef.current = settings.notifications_enabled !== false;
+        soundEnabledRef.current = settings.sound_enabled !== false;
+      }
       mutedRef.current = new Set(
         (members ?? []).filter((m) => m.muted).map((m) => m.conversation_id)
       );
@@ -108,13 +129,20 @@ export function useGlobalNotifications() {
           if (!active) return;
           const msg = payload.new as Message;
           if (msg.sender_id === user.id) return; // ignore own messages
+          if (notifiedRef.current.has(msg.id)) return; // avoid duplicates
+          notifiedRef.current.add(msg.id);
 
           // Mark the message as delivered for the recipient so the sender
           // sees the double tick even when the chat is not open.
           if (msg.delivered_at == null) {
             supabase.rpc('mark_message_delivered', { p_message_id: msg.id });
           }
-          if (activeConvRef.current === msg.conversation_id) return; // already open
+
+          // Refresh the sidebar conversation list.
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+          // Don't notify for the conversation that's currently open.
+          if (activeConvRef.current === msg.conversation_id) return;
           if (mutedRef.current.has(msg.conversation_id)) return; // muted
           if (!notifEnabledRef.current) return; // notifications disabled
 
@@ -138,18 +166,40 @@ export function useGlobalNotifications() {
               ? 'Sent a video'
               : full.message_type === 'voice'
               ? 'Sent a voice message'
-              : 'Sent an attachment';
+              : full.message_type === 'audio'
+              ? 'Sent an audio message'
+              : full.message_type === 'file'
+              ? 'Sent an attachment'
+              : 'New message';
 
-          if (document.visibilityState !== 'visible') {
+          // Only show a notification when the app is not visible/focused.
+          if (document.visibilityState === 'visible') return;
+
+          if (soundEnabledRef.current) {
             playNotificationSound();
           }
+
           if (permission === 'granted') {
             notify(senderName, {
               body,
               icon: '/icon-192.png',
-              tag: msg.conversation_id,
+              tag: msg.id,
               onClick: () => navigate(`/chats/${msg.conversation_id}`),
             });
+          } else {
+            // Fallback: service-worker notification if available.
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.ready
+                .then((reg) => {
+                  reg.showNotification(senderName, {
+                    body,
+                    icon: '/icon-192.png',
+                    tag: msg.id,
+                    data: { url: `/chats/${msg.conversation_id}` },
+                  });
+                })
+                .catch(() => {});
+            }
           }
         }
       )
@@ -159,7 +209,7 @@ export function useGlobalNotifications() {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [user, permission, notify, navigate]);
+  }, [user, permission, notify, navigate, queryClient]);
 
   return { setActiveConversation };
 }
