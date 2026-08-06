@@ -14,6 +14,8 @@
  * use `window.OneSignalDeferred.push(callback)` to queue commands until the
  * SDK is ready. Calling `OneSignal.init()` directly can silently no-op.
  */
+let initPromise: Promise<void> | null = null;
+let initialized = false;
 
 const APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID as string | undefined;
 
@@ -58,43 +60,41 @@ export function isOneSignalConfigured(): boolean {
  * script (loaded with `defer`) is ready. This is the recommended v16 pattern.
  */
 export function initOneSignal(): Promise<void> {
-  if (!APP_ID) {
-    if (import.meta.env.PROD) {
-      console.warn(
-        '[onesignal] `VITE_ONESIGNAL_APP_ID` is not set. OneSignal push notifications are disabled.'
-      );
-    }
+  if (initialized) {
     return Promise.resolve();
   }
 
-  return new Promise((resolve) => {
+  if (initPromise) {
+    return initPromise;
+  }
+
+  initPromise = new Promise((resolve) => {
     const deferred = getDeferred();
+
     if (!deferred?.push) {
-      console.warn('[onesignal] SDK not loaded. Did you add the OneSignal script to index.html?');
       resolve();
       return;
     }
 
-    deferred.push((OneSignal) => {
-      if (!OneSignal?.init) {
-        console.warn('[onesignal] OneSignal.init is not available.');
-        resolve();
-        return;
+    deferred.push(async (OneSignal) => {
+      try {
+        await OneSignal.init({
+          appId: APP_ID!,
+          serviceWorkerPath: "/OneSignalSDKWorker.js",
+          serviceWorkerParam: { scope: "/" },
+          allowLocalhostAsSecureOrigin: true,
+        });
+
+        initialized = true;
+      } catch (e) {
+        console.error(e);
       }
 
-      OneSignal.init({
-        appId: APP_ID,
-        serviceWorkerParam: { scope: '/' },
-        serviceWorkerPath: '/OneSignalSDKWorker.js',
-        allowLocalhostAsSecureOrigin: true,
-      })
-        .then(() => resolve())
-        .catch((err) => {
-          console.warn('[onesignal] init failed', err);
-          resolve();
-        });
+      resolve();
     });
   });
+
+  return initPromise;
 }
 
 /** Link the current Supabase user to the OneSignal subscription. */
