@@ -66,7 +66,7 @@ export function ChatSidebar() {
     };
   }, [debouncedSearch, user]);
 
-  // Realtime: refresh conversation list when messages change
+// Realtime: refresh conversation list when messages, pins, or presence change
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -79,6 +79,11 @@ export function ChatSidebar() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pinned_chats' },
+        () => qc.invalidateQueries({ queryKey: ['conversations', user.id] })
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
         () => qc.invalidateQueries({ queryKey: ['conversations', user.id] })
       )
       .subscribe();

@@ -1,11 +1,19 @@
-import { useEffect, useRef } from 'react';
+ import { useEffect, useRef } from 'react';
 import { setMyPresence } from '@/services/profile.service';
 
 /**
  * App-wide presence manager. Keeps the signed-in user's `is_online` flag and
- * `last_seen` fresh while the app is visible and focused, and marks them
- * offline when the app is hidden / closed. Mounted once at the layout level so
- * presence works on every page, not just inside an open chat.
+ * `last_seen` fresh while the app is open, and marks them offline when the
+ * app is hidden / closed. Mounted once at the layout level so presence works
+ * on every page, not just inside an open chat.
+ *
+ * Production notes:
+ *  - A user is kept online while the tab is merely *visible*, not only when it
+ *    also has keyboard focus. Requiring focus caused desktop users to show
+ *    offline whenever they clicked another window, which looked wrong.
+ *  - The server has a `pg_cron` job (migration 0011) that flips `is_online`
+ *    back to false if `last_seen` goes stale, so even if `pagehide` /
+ *    `beforeunload` are missed on mobile, presence self-corrects.
  */
 export function usePresenceManager() {
   const mounted = useRef(false);
@@ -19,7 +27,7 @@ export function usePresenceManager() {
     const goOffline = () => setMyPresence(false);
 
     const sync = () => {
-      if (document.visibilityState === 'visible' && document.hasFocus()) {
+      if (document.visibilityState === 'visible') {
         goOnline();
       } else {
         goOffline();
@@ -28,22 +36,15 @@ export function usePresenceManager() {
 
     sync();
     const onVis = () => sync();
-    const onFocus = () => {
-      if (document.visibilityState === 'visible') goOnline();
-    };
-    const onBlur = () => {
-      if (document.visibilityState !== 'visible') goOffline();
-    };
 
     document.addEventListener('visibilitychange', onVis);
-    window.addEventListener('focus', onFocus);
-    window.addEventListener('blur', onBlur);
     window.addEventListener('pagehide', goOffline);
     window.addEventListener('beforeunload', goOffline);
 
-    // Heartbeat while visible to recover from network blips.
+    // Heartbeat while visible to recover from network blips and keep
+    // `last_seen` fresh (the server auto-offlines after ~75s of staleness).
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && document.hasFocus()) {
+      if (document.visibilityState === 'visible') {
         goOnline();
       }
     }, 15_000);
@@ -57,8 +58,6 @@ export function usePresenceManager() {
 
     return () => {
       document.removeEventListener('visibilitychange', onVis);
-      window.removeEventListener('focus', onFocus);
-      window.removeEventListener('blur', onBlur);
       window.removeEventListener('pagehide', goOffline);
       window.removeEventListener('beforeunload', goOffline);
       window.removeEventListener('pagehide', onUnload as EventListener);

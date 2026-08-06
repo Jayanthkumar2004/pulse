@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
+import { setOneSignalSubscription, requestOneSignalPermission } from '@/services/onesignal.service';
 import { supabase } from '@/lib/supabase';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -31,7 +32,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
   const { mode, setMode, accentColor, setAccentColor } = useTheme();
-const { permission, requestPermission, disable } = useBrowserNotifications();
+  const { permission, requestPermission } = useBrowserNotifications();
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -56,7 +57,7 @@ const { permission, requestPermission, disable } = useBrowserNotifications();
     return () => {
       active = false;
     };
-  }, [user]);
+}, [user]);
 
   const savePrefs = async (patch: Record<string, boolean>) => {
     if (!user) return;
@@ -76,9 +77,9 @@ const { permission, requestPermission, disable } = useBrowserNotifications();
     const next = !notifEnabled;
     setNotifEnabled(next);
     await savePrefs({ message_notifications: next });
-    // If disabling, also remove the push subscription.
+    // If disabling, also disable the OneSignal push subscription.
     if (!next) {
-      await disable();
+      await setOneSignalSubscription(false);
     }
   };
 
@@ -93,12 +94,14 @@ const { permission, requestPermission, disable } = useBrowserNotifications();
     setPushEnabled(next);
     await savePrefs({ push_enabled: next });
     if (next) {
-      // Enable Web Push so background/closed-app notifications work.
+      // Enable OneSignal Web Push so background/closed-app notifications work.
       if (permission !== 'granted') {
-        await requestPermission();
+        await requestOneSignalPermission();
+      } else {
+        await setOneSignalSubscription(true);
       }
     } else {
-      await disable();
+      await setOneSignalSubscription(false);
     }
   };
 
@@ -322,22 +325,22 @@ function ToggleRow({
   disabled?: boolean;
   icon?: React.ReactNode;
 }) {
-  return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-chat-border dark:border-chat-dark-border last:border-0">
-      <div className="flex items-start gap-3">
-        {icon && <span className="mt-0.5 text-chat-muted">{icon}</span>}
-        <div>
+return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-chat-border dark:border-chat-dark-border last:border-0">
+      <div className="flex items-start gap-3 min-w-0">
+        {icon && <span className="mt-0.5 text-chat-muted shrink-0">{icon}</span>}
+        <div className="min-w-0">
           <p className="text-sm font-medium text-chat-bubbleText dark:text-chat-dark-bubbleText">
             {label}
           </p>
-          <p className="text-xs text-chat-muted">{description}</p>
+          <p className="text-xs text-chat-muted break-words">{description}</p>
         </div>
       </div>
       <button
         onClick={onChange}
         disabled={disabled}
         className={cn(
-          'relative h-6 w-11 rounded-full transition-colors shrink-0',
+          'relative h-6 w-11 shrink-0 rounded-full transition-colors',
           checked ? 'bg-accent' : 'bg-gray-300 dark:bg-white/15',
           disabled && 'opacity-40 cursor-not-allowed'
         )}

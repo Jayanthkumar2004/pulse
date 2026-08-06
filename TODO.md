@@ -1,36 +1,29 @@
-# TODO — Chat fixes
+# OneSignal Migration — Task Checklist
 
-## Typing bar scroll fix
-- [x] Create `src/hooks/useVisualViewport.ts` — hook tracking visual viewport height
-- [x] Update `src/layouts/ChatLayout.tsx` — anchor root container to visual viewport height
-- [x] Update `src/components/chat/MessageComposer.tsx` — remove manual kbOffset keyboard handling
+## Deletions
+- [x] Delete `src/services/push.service.ts`
+- [x] Delete `scripts/generate-vapid-keys.cjs`
+- [x] Delete `supabase/functions/send-push/index.ts` (folder)
+- [x] Delete `supabase/migrations/20260802103000_0006_push_subscriptions.sql`
+- [x] Delete `supabase/migrations/20260802120000_0008_push_trigger.sql`
+- [x] Delete `supabase/migrations/20260802160000_0012_fix_push_trigger.sql`
+- [x] Delete `PUSH_SETUP.md`
+- [x] Delete `public/sw.js` (merged into OneSignalSDKWorker.js)
 
-## Message status ticks
-- [x] Update `useGlobalNotifications.ts` — mark delivered globally for non-open chats
-- [x] Create migration `0009` — REPLICA IDENTITY FULL on messages for live blue ticks
-- [x] Update `useGlobalNotifications.ts` — respect mute + sound + notify settings
+## Modifications
+- [x] Merge PWA offline caching into `public/OneSignalSDKWorker.js`
+- [x] Clean `src/main.tsx` (remove all manual SW registration)
+- [x] Fix `src/services/onesignal.service.ts` (v16 `OneSignalDeferred.push` init)
+- [x] Clean `src/hooks/useOneSignal.ts` (init + login sequence)
+- [x] Mount `useOneSignal` in `src/layouts/ChatLayout.tsx`
+- [x] Wire `src/pages/SettingsPage.tsx` push toggle to OneSignal
+- [x] Update `index.html` (OneSignal SDK script)
+- [x] Add `vercel.json` rewrites
 
-## Online/last-seen accuracy
-- [x] Update `usePresence.ts` & `usePresenceManager.ts` — shorter heartbeat for accurate presence
+## Root-cause fix
+- [x] Eliminate the two-service-worker scope conflict (sw.js vs OneSignalSDKWorker.js)
 
-## Notification architecture (Pulse Chat spec)
-- [x] Realtime (PRIMARY) for foreground notifications
-- [x] Web Push chain for background/closed: DB Trigger → Edge Function → SW (provided)
-- [x] Recovery sync only when realtime disconnected (not primary)
-- [x] Dedup by message id (`notifiedRef`)
-- [x] Respect mute + notification preferences
-- [x] Separate notification delivery from read receipts
-- [x] Create `notification_preferences` table (migration `0010`)
-- [x] Auto-create preferences row on signup
-- [x] Add preferences to realtime publication
-- [x] SettingsPage: push_enabled + preview_enabled toggles wired to `notification_preferences`
-- [x] `useGlobalNotifications` reads `notification_preferences` (message/push/sound/preview)
-- [x] `send-push` Edge Function respects `push_enabled` + `preview_enabled`
-- [x] `pushsubscriptionchange` handler in `sw.js` + re-subscribe listener
-- [x] Client TypeScript compiles
-
-## Remaining (requires backend access / deploy for Web Push)
-- [ ] Run `node scripts/generate-vapid-keys.cjs` and add keys to `.env` + Edge Function secrets
-- [ ] Deploy `send-push` Edge Function with VAPID secrets
-- [ ] `supabase config set app.push.edge_url` + `app.push.webhook_secret`
-- [ ] `supabase db push` (apply migrations 0008, 0009, 0010)
+## Verification
+- [x] `npm run typecheck` — PASS
+- [x] `npm run build` — PASS
+- [x] `dist/OneSignalSDKWorker.js` present; `dist/sw.js` absent

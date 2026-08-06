@@ -57,12 +57,13 @@ export function usePresence(otherUserId: string | null) {
     };
   }, [otherUserId]);
 
-  // Keep the current user's own presence fresh while the app is active.
+// Keep the current user's own presence fresh while the app is active.
+  // "Visible" (not also focused) is enough — see usePresenceManager notes.
   useEffect(() => {
     const goOnline = () => setMyPresence(true);
     const goOffline = () => setMyPresence(false);
     const syncPresence = () => {
-      if (document.visibilityState === 'visible' && document.hasFocus()) {
+      if (document.visibilityState === 'visible') {
         goOnline();
       } else {
         goOffline();
@@ -71,30 +72,20 @@ export function usePresence(otherUserId: string | null) {
 
     syncPresence();
     const onVis = () => syncPresence();
-    const onFocus = () => {
-      if (document.visibilityState === 'visible') goOnline();
-    };
-    const onBlur = () => {
-      if (document.visibilityState !== 'visible') goOffline();
-    };
 
     document.addEventListener('visibilitychange', onVis);
-    window.addEventListener('focus', onFocus);
-    window.addEventListener('blur', onBlur);
     window.addEventListener('pagehide', goOffline);
     window.addEventListener('beforeunload', goOffline);
     // Short heartbeat: keeps `last_seen` fresh and recovers from missed
     // offline events quickly, so other users see accurate online status.
     timer.current = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && document.hasFocus()) {
+      if (document.visibilityState === 'visible') {
         goOnline();
       }
     }, 15_000);
 
     return () => {
       document.removeEventListener('visibilitychange', onVis);
-      window.removeEventListener('focus', onFocus);
-      window.removeEventListener('blur', onBlur);
       window.removeEventListener('pagehide', goOffline);
       window.removeEventListener('beforeunload', goOffline);
       if (timer.current) clearInterval(timer.current);

@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
-import { subscribeToPush } from '@/services/push.service';
 import { playNotificationSound } from '@/lib/sound';
 import type { Message } from '@/types';
 
@@ -16,23 +15,19 @@ const MESSAGE_SELECT = `
 `;
 
 /**
- * App-wide notification listener implementing the Pulse Chat notification
- * architecture:
+ * App-wide foreground notification listener.
  *
- *   Foreground:      Message → Realtime → Hook → Browser Notification
- *   Background/PWA:  Message → DB Trigger → Edge Function → Web Push → SW
+ * Foreground path: Message → Realtime → Hook → Browser Notification.
  *
- * This hook covers the foreground path (Realtime) and also fires the in-app
- * fallback (service-worker `showNotification`) when the tab is hidden but the
- * OS-level Web Push hasn't been configured yet. Delivery is layered:
+ * Background/closed-app push notifications are delegated to OneSignal.
  *
- *   1. Realtime (PRIMARY) — instant INSERT events via Supabase Realtime while
- *      the app is open. This is the fast path used for active sessions.
- *   2. Recovery sync (safety net) — a low-frequency reconciliation that only
- *      runs when the realtime channel reports it is disconnected. It queries
- *      the `messages` table (RLS: conversation members) for anything missed
- *      since the last check, so a dropped websocket never silently loses a
- *      notification. It is NOT the primary mechanism — it is a recovery tool.
+ *  1. Realtime (PRIMARY) — instant INSERT events via Supabase Realtime while
+ *     the app is open. This is the fast path used for active sessions.
+ *  2. Recovery sync (safety net) — a low-frequency reconciliation that only
+ *     runs when the realtime channel reports it is disconnected. It queries
+ *     the `messages` table (RLS: conversation members) for anything missed
+ *     since the last check, so a dropped websocket never silently loses a
+ *     notification. It is NOT the primary mechanism — it is a recovery tool.
  *
  * Deduplication is handled by message id (`notifiedRef`), mutes and user
  * notification settings are respected, and read receipts (delivered ticks)
@@ -55,12 +50,11 @@ export function useGlobalNotifications() {
   const lastSeenRef = useRef<string | null>(null);
   const usersRef = useRef<string | null>(null);
   const channelStateRef = useRef<'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED' | string>('CLOSED');
-  const reconnectTimerRef = useRef<number | null>(null);
 
   // Keep the user id available to the recovery callback.
   usersRef.current = user?.id ?? null;
 
-// Load user's notification preferences + muted conversations.
+  // Load user's notification preferences + muted conversations.
   useEffect(() => {
     if (!user) return;
     let active = true;
@@ -90,28 +84,6 @@ export function useGlobalNotifications() {
     return () => {
       active = false;
     };
-  }, [user]);
-
-  // Request notification permission on load if it's still "default".
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
-  }, []);
-
-// Auto-subscribe to Web Push when permission is granted and push is enabled
-  // so the background/closed-app path (DB trigger → Edge Function → Web Push)
-  // works.
-  useEffect(() => {
-    if (
-      user &&
-      'Notification' in window &&
-      Notification.permission === 'granted' &&
-      notifEnabledRef.current &&
-      pushEnabledRef.current
-    ) {
-      void subscribeToPush();
-    }
   }, [user]);
 
   // Expose active conversation so ChatPage can tell us not to notify.
@@ -145,7 +117,7 @@ export function useGlobalNotifications() {
         // Only show a notification when the app is not visible.
         if (document.visibilityState === 'visible') continue;
 
-const senderName =
+        const senderName =
           msg.sender?.full_name || msg.sender?.username || 'Someone';
         const body = !previewEnabledRef.current
           ? 'New message'
@@ -174,17 +146,6 @@ const senderName =
             tag: msg.id,
             onClick: () => navigate(`/chats/${msg.conversation_id}`),
           });
-        } else if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.ready
-            .then((reg) => {
-              reg.showNotification(senderName, {
-                body,
-                icon: '/icon-192.png',
-                tag: msg.id,
-                data: { url: `/chats/${msg.conversation_id}` },
-              });
-            })
-            .catch(() => {});
         }
       }
     },

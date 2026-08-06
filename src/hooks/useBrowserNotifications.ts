@@ -1,8 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
-import { subscribeToPush, unsubscribeFromPush } from '@/services/push.service';
 
 type Permission = 'default' | 'granted' | 'denied' | 'unsupported';
 
+/**
+ * Foreground browser notification helper.
+ *
+ * This only handles in-app `new Notification()` foreground notifications.
+ * Background/closed-app Web Push is delegated to OneSignal, which manages its
+ * own service worker and subscriptions — no push logic lives here.
+ */
 export function useBrowserNotifications() {
   const [permission, setPermission] = useState<Permission>(() => {
     if (!('Notification' in window)) return 'unsupported';
@@ -14,26 +20,10 @@ export function useBrowserNotifications() {
     setPermission(Notification.permission as Permission);
   }, []);
 
-  // Re-subscribe if the browser rotates the push subscription (handled by
-  // the service worker's `pushsubscriptionchange` listener).
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'PUSH_SUBSCRIPTION_CHANGED') {
-        void subscribeToPush();
-      }
-    };
-    navigator.serviceWorker?.addEventListener('message', onMessage);
-    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
-  }, []);
-
   const requestPermission = useCallback(async () => {
     if (!('Notification' in window)) return 'unsupported' as const;
     const result = await Notification.requestPermission();
     setPermission(result as Permission);
-    if (result === 'granted') {
-      // Register the PWA push subscription if the service worker is ready.
-      await subscribeToPush();
-    }
     return result as Permission;
   }, []);
 
@@ -63,9 +53,5 @@ export function useBrowserNotifications() {
     []
   );
 
-  const disable = useCallback(async () => {
-    await unsubscribeFromPush();
-  }, []);
-
-  return { permission, requestPermission, notify, disable };
+  return { permission, requestPermission, notify };
 }

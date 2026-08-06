@@ -159,7 +159,7 @@ const scrollRef = useRef<HTMLDivElement>(null);
     requestAnimationFrame(() => scrollToBottom('auto'));
 }, [conversationId, scrollToBottom]);
 
-  useEffect(() => {
+useEffect(() => {
     setActiveConversation(conversationId ?? null);
     if (conversationId) {
       setMessages([]);
@@ -167,6 +167,36 @@ const scrollRef = useRef<HTMLDivElement>(null);
       markConversationRead(conversationId).catch(() => undefined);
     }
   }, [conversationId, loadMessages, setActiveConversation]);
+
+  // Continuously mark the conversation as read while it is open and visible,
+  // so the sender's read receipts (double/blue tick) update reliably even if
+  // a realtime UPDATE event is missed or delayed. Also re-marks on tab focus.
+  useEffect(() => {
+    if (!conversationId) return;
+    let active = true;
+
+    const markReadIfVisible = () => {
+      if (!active) return;
+      if (document.visibilityState === 'visible' && document.hasFocus()) {
+        markConversationRead(conversationId).catch(() => undefined);
+      }
+    };
+
+    markReadIfVisible();
+    const onVis = () => markReadIfVisible();
+    const onFocus = () => markReadIfVisible();
+
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onFocus);
+    const interval = window.setInterval(markReadIfVisible, 10_000);
+
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(interval);
+    };
+  }, [conversationId]);
 
   useEffect(() => {
     if (!conversationId) return;

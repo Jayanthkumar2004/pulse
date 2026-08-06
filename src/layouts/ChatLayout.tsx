@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { usePresenceManager } from '@/hooks/usePresenceManager';
 import { useGlobalNotifications } from '@/hooks/useGlobalNotifications';
+import { useOneSignal } from '@/hooks/useOneSignal';
 import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { cn } from '@/lib/utils';
 
@@ -12,13 +13,14 @@ import { cn } from '@/lib/utils';
  * conversation is open, and as a welcome placeholder otherwise — so only one
  * pane is ever visible on small screens.
  *
- * Also mounts app-wide behaviors: online presence heartbeat and global
- * notifications for new messages on any conversation.
+* Also mounts app-wide behaviors: online presence heartbeat, global
+ * foreground notifications for new messages, and OneSignal push linking.
  */
 export function ChatLayout() {
   const location = useLocation();
   usePresenceManager();
   useGlobalNotifications();
+  useOneSignal();
   const vvHeight = useVisualViewport();
 
   const isMobileFullScreen =
